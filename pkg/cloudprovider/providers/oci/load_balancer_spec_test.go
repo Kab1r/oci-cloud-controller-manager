@@ -11473,6 +11473,142 @@ func Test_getBackendSets(t *testing.T) {
 			},
 			err: nil,
 		},
+		// This test case covers the scenario where service has ipFamilyPolicy: PreferDualStack
+		// but ipFamilies only shows [IPv4]. When subnet supports both IPv4 and IPv6,
+		// listenerBackendIpVersion will be [IPv4, IPv6]. The code should create both
+		// IPv4 and IPv6 backend sets to match the listeners that will be created.
+		"IpFamilies IPv4 ListenerBackendSetIpVersion IPv4IPv6 - PreferDualStack scenario": {
+			service: &v1.Service{
+				Spec: v1.ServiceSpec{
+					SessionAffinity: v1.ServiceAffinityNone,
+					Ports: []v1.ServicePort{
+						{
+							Protocol: v1.ProtocolTCP,
+							Port:     int32(67),
+							NodePort: 36667,
+						},
+					},
+					IPFamilies: []v1.IPFamily{v1.IPFamily(IPv4)}, // Service spec only has IPv4
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						ServiceAnnotationLoadBalancerType: "nlb",
+					},
+				},
+			},
+			provisionedNodes: []*v1.Node{
+				{
+					TypeMeta:   metav1.TypeMeta{},
+					ObjectMeta: metav1.ObjectMeta{},
+					Spec: v1.NodeSpec{
+						ProviderID: testNodeString,
+					},
+					Status: v1.NodeStatus{
+						Addresses: []v1.NodeAddress{
+							{
+								Address: "2001:0000:130F:0000:0000:09C0:876A:130B",
+								Type:    "InternalIP",
+							},
+						},
+					},
+				},
+				{
+					TypeMeta:   metav1.TypeMeta{},
+					ObjectMeta: metav1.ObjectMeta{},
+					Spec: v1.NodeSpec{
+						ProviderID: testNodeString,
+					},
+					Status: v1.NodeStatus{
+						Addresses: []v1.NodeAddress{
+							{
+								Address: "2001:0000:130F:0000:0000:09C0:876A:1300",
+								Type:    "InternalIP",
+							},
+						},
+					},
+				},
+				{
+					TypeMeta:   metav1.TypeMeta{},
+					ObjectMeta: metav1.ObjectMeta{},
+					Spec: v1.NodeSpec{
+						ProviderID: testNodeString,
+					},
+					Status: v1.NodeStatus{
+						Addresses: []v1.NodeAddress{
+							{
+								Address: "10.0.0.1",
+								Type:    "InternalIP",
+							},
+						},
+					},
+				},
+				{
+					TypeMeta:   metav1.TypeMeta{},
+					ObjectMeta: metav1.ObjectMeta{},
+					Spec: v1.NodeSpec{
+						ProviderID: testNodeString,
+					},
+					Status: v1.NodeStatus{
+						Addresses: []v1.NodeAddress{
+							{
+								Address: "10.0.0.2",
+								Type:    "InternalIP",
+							},
+						},
+					},
+				},
+			},
+			virtualPods:              []*v1.Pod{},
+			sslCfg:                   nil,
+			listenerBackendIpVersion: []string{IPv4, IPv6}, // Subnet supports both
+			wantBackendSets: map[string]client.GenericBackendSetDetails{
+				"TCP-67": {
+					Name:   &testThreeBackendSetNameIPv4,
+					Policy: common.String("FIVE_TUPLE"),
+					HealthChecker: &client.GenericHealthChecker{
+						Protocol:         "HTTP",
+						IsForcePlainText: common.Bool(false),
+						Port:             common.Int(10256),
+						UrlPath:          common.String("/healthz"),
+						Retries:          common.Int(3),
+						TimeoutInMillis:  common.Int(3000),
+						IntervalInMillis: common.Int(10000),
+						ReturnCode:       common.Int(http.StatusOK),
+					},
+					Backends: []client.GenericBackend{
+						{IpAddress: common.String("10.0.0.1"), Port: common.Int(36667), Weight: common.Int(1), TargetId: &testNodeString},
+						{IpAddress: common.String("10.0.0.2"), Port: common.Int(36667), Weight: common.Int(1), TargetId: &testNodeString},
+					},
+					SessionPersistenceConfiguration: nil,
+					SslConfiguration:                nil,
+					IpVersion:                       GenericIpVersion(client.GenericIPv4),
+					IsPreserveSource:                common.Bool(false),
+				},
+				"TCP-67-IPv6": {
+					Name:   &testThreeBackendSetNameIPv6,
+					Policy: common.String("FIVE_TUPLE"),
+					HealthChecker: &client.GenericHealthChecker{
+						Protocol:         "HTTP",
+						IsForcePlainText: common.Bool(false),
+						Port:             common.Int(10256),
+						UrlPath:          common.String("/healthz"),
+						Retries:          common.Int(3),
+						TimeoutInMillis:  common.Int(3000),
+						IntervalInMillis: common.Int(10000),
+						ReturnCode:       common.Int(http.StatusOK),
+					},
+					Backends: []client.GenericBackend{
+						{IpAddress: common.String("2001:0000:130F:0000:0000:09C0:876A:130B"), Port: common.Int(36667), Weight: common.Int(1)},
+						{IpAddress: common.String("2001:0000:130F:0000:0000:09C0:876A:1300"), Port: common.Int(36667), Weight: common.Int(1)},
+					},
+					SessionPersistenceConfiguration: nil,
+					SslConfiguration:                nil,
+					IpVersion:                       GenericIpVersion(client.GenericIPv6),
+					IsPreserveSource:                common.Bool(false),
+				},
+			},
+			err: nil,
+		},
 		"IpFamilies IPv6 ListenerBackendSetIpVersion IPv6": {
 			service: &v1.Service{
 				Spec: v1.ServiceSpec{
