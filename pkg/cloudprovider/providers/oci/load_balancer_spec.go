@@ -759,7 +759,7 @@ func getBackendSetName(protocol string, port int) string {
 
 func getPorts(svc *v1.Service, listenerBackendIpVersion []string) (map[string]portSpec, error) {
 	ports := make(map[string]portSpec)
-	for backendSetName, servicePort := range getBackendSetNamePortMap(svc) {
+	for backendSetName, servicePort := range getBackendSetNamePortMap(svc, listenerBackendIpVersion) {
 		healthChecker, err := getHealthChecker(svc)
 		if err != nil {
 			return nil, err
@@ -835,7 +835,7 @@ func getBackendSets(logger *zap.SugaredLogger, svc *v1.Service, provisionedNodes
 		return nil, err
 	}
 
-	for backendSetName, servicePort := range getBackendSetNamePortMap(svc) {
+	for backendSetName, servicePort := range getBackendSetNamePortMap(svc, listenerBackendIpVersion) {
 		var secretName string
 		var sslConfiguration *client.GenericSslConfigurationDetails
 		if sslCfg != nil && len(sslCfg.BackendSetSSLSecretName) != 0 && getLoadBalancerType(svc) == LB {
@@ -1543,7 +1543,7 @@ func getLoadBalancerType(svc *v1.Service) string {
 	}
 }
 
-func getBackendSetNamePortMap(service *v1.Service) map[string]v1.ServicePort {
+func getBackendSetNamePortMap(service *v1.Service, listenerBackendIpVersion []string) map[string]v1.ServicePort {
 	backendSetPortMap := make(map[string]v1.ServicePort)
 
 	portsMap := make(map[int][]string)
@@ -1551,8 +1551,7 @@ func getBackendSetNamePortMap(service *v1.Service) map[string]v1.ServicePort {
 		portsMap[int(servicePort.Port)] = append(portsMap[int(servicePort.Port)], string(servicePort.Protocol))
 	}
 
-	ipFamilies := getIpFamilies(service)
-	requireIPv4, requireIPv6 := getRequireIpVersions(ipFamilies)
+	requireIPv4, requireIPv6 := getRequireIpVersions(listenerBackendIpVersion)
 
 	mixedProtocolsPortSet := make(map[int]bool)
 	for _, servicePort := range service.Spec.Ports {

@@ -10413,9 +10413,8 @@ func Test_getBackendSetNamePortMap(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			ipFamilies := []v1.IPFamily{v1.IPFamily(IPv4)}
-			tc.in.Spec.IPFamilies = ipFamilies
-			got := getBackendSetNamePortMap(tc.in)
+			listenerBackendIpVersion := []string{IPv4}
+			got := getBackendSetNamePortMap(tc.in, listenerBackendIpVersion)
 			if !reflect.DeepEqual(got, tc.out) {
 				t.Errorf("Expected \n%+v\nbut got\n%+v", tc.out, got)
 			}
